@@ -1,0 +1,19 @@
+{
+  "name": "ocho-admin-copilot",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Ocho AI — internal admin copilot for Ocho The Agency",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev": "concurrently -n SERVER,CLIENT -c blue,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w client",
+    "start": "npm run build && npm run start -w server",
+    "start:server-only": "npm run start -w server"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
+}
