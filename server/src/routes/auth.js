@@ -3,6 +3,9 @@ import crypto from "crypto";
 import { readDb, writeDb } from "../db.js";
 import { hashPassword, verifyPassword } from "../password.js";
 import { requireAuth, publicUser } from "../auth.js";
+import { isEmailConfigured, sendPasswordResetEmail } from "../email.js";
+
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 const router = Router();
 
@@ -135,6 +138,79 @@ router.post("/logout", (req, res) => {
 
 router.get("/me", requireAuth, (req, res) => {
   res.json({ user: publicUser(req.user) });
+});
+
+// ---- forgot password ----
+// Lets the frontend know up front whether a reset email would actually go
+// anywhere, so it can show "check your inbox" or "ask your owner instead"
+// rather than promising an email that was never configured to send.
+router.get("/email-status", (req, res) => {
+  res.json({ configured: isEmailConfigured() });
+});
+
+router.post("/forgot-password", async (req, res, next) => {
+  try {
+    const normalizedEmail = normalizeEmail(req.body?.email);
+    if (!normalizedEmail) return res.status(400).json({ error: "Email is required" });
+
+    const throttleError = checkThrottle(`forgot:${normalizedEmail}`);
+    if (throttleError) return res.status(429).json({ error: throttleError });
+
+    const db = await readDb();
+    const user = db.users.find((u) => u.email === normalizedEmail && u.active);
+
+    // Same response whether or not the email matched a real account — never
+    // let this endpoint reveal which emails have accounts.
+    if (user) {
+      const token = crypto.randomBytes(32).toString("hex");
+      user.resetToken = token;
+      user.resetTokenExpiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS).toISOString();
+      await writeDb(db);
+
+      const appUrl = (process.env.APP_URL || "http://localhost:5173").replace(/\/$/, "");
+      const resetUrl = `${appUrl}/?token=${token}`;
+      try {
+        await sendPasswordResetEmail({ to: user.email, name: user.name, resetUrl });
+      } catch (sendErr) {
+        console.error("Failed to send password reset email:", sendErr);
+      }
+    } else {
+      recordFailure(`forgot:${normalizedEmail}`); // keeps timing similar whether or not the account exists
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/reset-password", async (req, res, next) => {
+  try {
+    const { token, newPassword } = req.body || {};
+    if (!token || typeof token !== "string") {
+      return res.status(400).json({ error: "Missing or invalid reset token" });
+    }
+    if (!newPassword || String(newPassword).length < MIN_PASSWORD_LENGTH) {
+      return res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` });
+    }
+
+    const db = await readDb();
+    const user = db.users.find((u) => u.resetToken === token);
+    if (!user || !user.resetTokenExpiresAt || new Date(user.resetTokenExpiresAt) < new Date()) {
+      return res.status(400).json({ error: "This reset link is invalid or has expired — request a new one." });
+    }
+
+    user.passwordHash = hashPassword(newPassword);
+    user.mustChangePassword = false;
+    user.resetToken = null;
+    user.resetTokenExpiresAt = null;
+    await writeDb(db);
+
+    req.session.userId = user.id;
+    res.json({ user: publicUser(user) });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // ---- password change ----

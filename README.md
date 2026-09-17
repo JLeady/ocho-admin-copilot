@@ -77,6 +77,10 @@ Then open `server/.env` and fill in:
   ```bash
   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
   ```
+- `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `EMAIL_FROM` — optional,
+  for "Forgot password?" to actually send an email. Without these, the reset
+  flow still works end to end, it just tells people to ask their team owner
+  instead of emailing them — see **Forgot password**, below.
 
 There's no password to set here anymore — accounts are created inside the app (see **Accounts & team** below).
 
@@ -120,8 +124,8 @@ the thing.
   forgotten password. `employee` accounts do everything else the same —
   clients, notes, drafts, reports — just without the Team panel.
 - **Adding someone:** Team → Add team member → name, email, role. This
-  generates a temporary password shown *once* — there's no email sending
-  built in, so copy it and send it to them yourself (Slack, in person,
+  generates a temporary password shown *once* — this isn't emailed to them
+  automatically, so copy it and send it to them yourself (Slack, in person,
   whatever). They're forced to set their own password the first time they
   log in with it.
 - **Deactivating, not deleting.** There's deliberately no way to delete a
@@ -134,6 +138,31 @@ the thing.
   first), find your user object, and set `"role": "owner"` and
   `"active": true`. Automatic backups in `server/data/backups/` have older
   copies if you need to see what it looked like before.
+
+## Forgot password
+
+"Forgot password?" on the login screen is a real, working flow — not a
+placeholder — but what it *does* depends on whether email sending is set up:
+
+- **SMTP configured** (see the env vars above): entering an email sends a
+  real reset link, valid for 1 hour. Clicking it opens a "choose a new
+  password" screen and logs you straight in afterward.
+- **Not configured** (the default, out of the box): the screen tells people
+  to ask their team owner to reset their password from **Team** instead —
+  the same fallback as before, just reached from a real check instead of a
+  hard-coded message.
+
+Either way, the same "don't reveal which emails have accounts" rule applies
+as with login: requesting a reset for an email that doesn't exist responds
+identically to one that does. If SMTP isn't set up and you (the owner) want
+to see a reset link during testing, it's logged to the server's own console
+instead of being silently dropped — check whichever terminal is running
+`npm run dev` / `npm start`.
+
+Any normal SMTP account works — a personal Gmail with an
+[App Password](https://myaccount.google.com/apppasswords) (needs 2-Step
+Verification turned on first), a transactional service like Resend or
+SendGrid, or a business mailbox. See `server/src/email.js`.
 
 ## Reliability features
 
@@ -165,6 +194,9 @@ client data doesn't get lost or exposed carelessly:
 
 ## Functionality features
 
+- **Search.** A search box above the client list filters by name or business
+  type as you type — fine to skip with a handful of clients, but stops you
+  scroll-hunting once the list gets long.
 - **Needs-attention view.** A toggle at the top of the client list ("All" /
   "Needs attention") filters down to clients who are amber or red on the
   health dot — the whole point of that indicator, without having to scan the

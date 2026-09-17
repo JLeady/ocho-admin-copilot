@@ -34,10 +34,12 @@ export function sessionMiddleware() {
   });
 }
 
-// Strips the password hash before a user object ever leaves the server.
+// Strips secrets before a user object ever leaves the server — the
+// password hash, and the reset token (which is only ever meant to be used
+// via the emailed link, never displayed or handed back in-app).
 export function publicUser(user) {
   if (!user) return null;
-  const { passwordHash, ...safe } = user;
+  const { passwordHash, resetToken, resetTokenExpiresAt, ...safe } = user;
   return safe;
 }
 

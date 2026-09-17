@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Lock, Mail, User, Loader2, KeyRound } from "lucide-react";
 import { api } from "./api";
 import ochoLogo from "./assets/ocho-logo.png";
@@ -144,9 +144,7 @@ export default function Login({ onSuccess }) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  // Placeholder only — no reset flow wired up yet. Replace this toggle with
-  // the real "forgot password" flow when that's ready.
-  const [showForgotNote, setShowForgotNote] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
 
   async function submit(e) {
     e.preventDefault();
@@ -161,6 +159,14 @@ export default function Login({ onSuccess }) {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (forgotOpen) {
+    return (
+      <AuthShell>
+        <ForgotPasswordPanel onBack={() => setForgotOpen(false)} />
+      </AuthShell>
+    );
   }
 
   return (
@@ -180,19 +186,13 @@ export default function Login({ onSuccess }) {
         <div className="flex justify-end mb-3 -mt-1">
           <button
             type="button"
-            onClick={() => setShowForgotNote((v) => !v)}
+            onClick={() => setForgotOpen(true)}
             className="text-xs font-semibold"
             style={{ color: ACCENT }}
           >
             Forgot password?
           </button>
         </div>
-
-        {showForgotNote && (
-          <p className="text-xs mb-3 rounded-lg p-2.5" style={{ color: MUTED, background: BG }}>
-            Self-service reset isn't set up yet — ask your team owner to reset your password from Team.
-          </p>
-        )}
 
         {error && <p className="text-sm mb-3" style={{ color: RED }}>{error}</p>}
 
@@ -207,6 +207,77 @@ export default function Login({ onSuccess }) {
         </p>
       </form>
     </AuthShell>
+  );
+}
+
+// Checks whether email sending is actually configured server-side before
+// promising a reset email — see server/src/email.js. If it isn't, this
+// points people at the fallback (an owner resetting them from Team) instead
+// of pretending to send something that was never going to arrive.
+function ForgotPasswordPanel({ onBack }) {
+  const [checking, setChecking] = useState(true);
+  const [configured, setConfigured] = useState(false);
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api.emailStatus()
+      .then((res) => setConfigured(!!res.configured))
+      .catch(() => setConfigured(false))
+      .finally(() => setChecking(false));
+  }, []);
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!email) return;
+    setLoading(true);
+    setError("");
+    try {
+      await api.forgotPassword({ email });
+      setSent(true);
+    } catch (err) {
+      setError(err.message || "Something went wrong — check connection and try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div>
+      <Heading
+        title="Reset your password"
+        subtitle={configured ? "Enter your email and we'll send you a reset link." : "Self-service reset isn't set up yet."}
+      />
+
+      {checking ? (
+        <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin" color={MUTED} /></div>
+      ) : !configured ? (
+        <p className="text-sm mb-5 rounded-lg p-3" style={{ color: MUTED, background: BG }}>
+          Ask your team owner to reset your password for you from Team, inside the app.
+        </p>
+      ) : sent ? (
+        <p className="text-sm mb-5 rounded-lg p-3" style={{ color: MUTED, background: BG }}>
+          If an account exists for that email, we've sent a link to reset your password. It expires in 1 hour.
+        </p>
+      ) : (
+        <form onSubmit={submit}>
+          <IconField
+            icon={Mail} type="email" autoFocus value={email}
+            onChange={(e) => setEmail(e.target.value)} placeholder="Email"
+          />
+          {error && <p className="text-sm mb-3" style={{ color: RED }}>{error}</p>}
+          <PrimaryButton type="submit" loading={loading} loadingLabel="Sending…" disabled={!email}>
+            Send reset link
+          </PrimaryButton>
+        </form>
+      )}
+
+      <button type="button" onClick={onBack} className="text-xs font-semibold mt-5" style={{ color: ACCENT }}>
+        ← Back to login
+      </button>
+    </div>
   );
 }
 
@@ -333,6 +404,72 @@ export function ForcePasswordChange({ onSuccess }) {
             Set password
           </PrimaryButton>
         </div>
+      </form>
+    </AuthShell>
+  );
+}
+
+// ---------- reset password (opened from the emailed link, ?token=...) ----------
+export function ResetPassword({ token, onSuccess, onCancel }) {
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(e) {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      setError("Passwords don't match.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const { user } = await api.resetPassword({ token, newPassword });
+      onSuccess(user);
+    } catch (err) {
+      setError(err.message || "Couldn't reset your password — check connection and try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <AuthShell>
+      <form onSubmit={submit}>
+        <Heading title="Choose a new password" subtitle="Set a new password for your account." />
+
+        <IconField
+          icon={Lock} type="password" autoFocus value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)} placeholder="New password (min. 8 characters)"
+        />
+        <IconField
+          icon={Lock} type="password" value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm new password"
+        />
+
+        {error && <p className="text-sm mb-3" style={{ color: RED }}>{error}</p>}
+
+        <div className="mt-5">
+          <PrimaryButton
+            type="submit" loading={loading} loadingLabel="Saving…"
+            disabled={!newPassword || !confirmPassword}
+          >
+            Set password
+          </PrimaryButton>
+        </div>
+
+        <button
+          type="button" onClick={onCancel}
+          className="text-xs font-semibold mt-5 block mx-auto"
+          style={{ color: MUTED }}
+        >
+          Back to login
+        </button>
       </form>
     </AuthShell>
   );

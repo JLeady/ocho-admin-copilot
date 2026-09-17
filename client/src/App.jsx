@@ -2,10 +2,10 @@ import { useState, useEffect } from "react";
 import {
   Plus, X, Copy, Check, Clock, Mail, FileText, Sparkles, Loader2,
   Building2, ChevronLeft, AlertCircle, CheckCircle2, StickyNote, Send, Pencil, Trash2, LogOut, RotateCcw,
-  AlertTriangle, Users, CalendarDays, CalendarPlus, Download,
+  AlertTriangle, Users, CalendarDays, CalendarPlus, Download, Search,
 } from "lucide-react";
 import { api } from "./api";
-import Login, { Setup, ForcePasswordChange } from "./Login.jsx";
+import Login, { Setup, ForcePasswordChange, ResetPassword } from "./Login.jsx";
 import { downloadReportPdf } from "./ReportPdf.jsx";
 
 // ---------- design tokens ----------
@@ -229,14 +229,28 @@ function Toast({ message, type = "error", onDismiss }) {
   );
 }
 
+// A reset link looks like http://.../?token=... — pulled once at module load
+// so it survives whatever the loading/setup/login check below decides, and
+// cleared from the URL once it's been consumed (success or cancel) so a
+// page refresh doesn't re-trigger the reset screen.
+function getResetTokenFromUrl() {
+  return new URLSearchParams(window.location.search).get("token");
+}
+function clearResetTokenFromUrl() {
+  window.history.replaceState({}, "", window.location.pathname);
+}
+
 // ---------- app root: auth gate ----------
 // phase: 'loading' | 'setup' (no accounts exist yet) | 'login' |
-// 'force-password' (admin issued a temp password) | 'app'
+// 'force-password' (admin issued a temp password) | 'reset-password'
+// (opened from an emailed reset link) | 'app'
 export default function App() {
-  const [phase, setPhase] = useState("loading");
+  const [resetToken] = useState(getResetTokenFromUrl);
+  const [phase, setPhase] = useState(resetToken ? "reset-password" : "loading");
   const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
+    if (resetToken) return; // skip the normal session check — this is a standalone flow
     (async () => {
       try {
         const { user } = await api.me();
@@ -260,6 +274,22 @@ export default function App() {
   function handleLogout() {
     setCurrentUser(null);
     setPhase("login");
+  }
+
+  if (phase === "reset-password") {
+    return (
+      <ResetPassword
+        token={resetToken}
+        onSuccess={(user) => {
+          clearResetTokenFromUrl();
+          enterAsUser(user);
+        }}
+        onCancel={() => {
+          clearResetTokenFromUrl();
+          setPhase("login");
+        }}
+      />
+    );
   }
 
   if (phase === "loading") {
@@ -288,6 +318,7 @@ function OchoAdminCopilot({ currentUser, onLogout }) {
   const [deletedClients, setDeletedClients] = useState([]);
   const [confirmDialog, setConfirmDialog] = useState(null); // { title, message, confirmLabel, danger, onConfirm }
   const [listFilter, setListFilter] = useState("all"); // 'all' | 'attention'
+  const [searchQuery, setSearchQuery] = useState("");
   const [teamOpen, setTeamOpen] = useState(false);
 
   function askConfirm({ title, message, confirmLabel, danger = true, onConfirm }) {
@@ -520,7 +551,15 @@ function OchoAdminCopilot({ currentUser, onLogout }) {
     : [];
 
   const attentionCount = clients ? clients.filter(needsAttention).length : 0;
-  const visibleClients = listFilter === "attention" ? sortedClients.filter(needsAttention) : sortedClients;
+  const filteredClients = listFilter === "attention" ? sortedClients.filter(needsAttention) : sortedClients;
+  const searchQueryTrimmed = searchQuery.trim().toLowerCase();
+  const visibleClients = searchQueryTrimmed
+    ? filteredClients.filter(
+        (c) =>
+          c.name.toLowerCase().includes(searchQueryTrimmed) ||
+          c.businessType.toLowerCase().includes(searchQueryTrimmed)
+      )
+    : filteredClients;
 
   if (clients === null) {
     return (
@@ -573,6 +612,27 @@ function OchoAdminCopilot({ currentUser, onLogout }) {
           </button>
         </div>
 
+        <div className="px-5 pb-3 relative">
+          <Search size={14} className="absolute left-8 top-1/2 -translate-y-1/2 pointer-events-none" color={MUTED} />
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search clients…"
+            className="w-full rounded-lg pl-8 pr-7 py-1.5 text-sm outline-none border transition-colors focus:border-[#2E5BFF]"
+            style={{ borderColor: BORDER }}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-7 top-1/2 -translate-y-1/2"
+              style={{ color: MUTED }}
+              title="Clear search"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+
         <div className="px-5 pb-3 flex gap-1">
           {[
             { id: "all", label: `All (${clients.length})` },
@@ -597,9 +657,11 @@ function OchoAdminCopilot({ currentUser, onLogout }) {
           {visibleClients.length === 0 && (
             <div className="px-3 py-8 text-center">
               <p className="text-sm" style={{ color: MUTED }}>
-                {listFilter === "attention"
-                  ? "Nobody needs attention right now — nice work."
-                  : "No clients yet. Add the first one to get started."}
+                {searchQueryTrimmed
+                  ? "No clients match your search."
+                  : listFilter === "attention"
+                    ? "Nobody needs attention right now — nice work."
+                    : "No clients yet. Add the first one to get started."}
               </p>
             </div>
           )}

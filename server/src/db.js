@@ -66,6 +66,8 @@ function normalizeUser(user) {
     role: USER_ROLES.includes(user.role) ? user.role : "employee",
     active: user.active ?? true,
     mustChangePassword: !!user.mustChangePassword,
+    resetToken: user.resetToken ?? null,
+    resetTokenExpiresAt: user.resetTokenExpiresAt ?? null,
   };
 }
 

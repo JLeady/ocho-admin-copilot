@@ -48,6 +48,11 @@ export const api = {
   me: () => request("/auth/me"),
   changePassword: ({ currentPassword, newPassword }) =>
     request("/auth/change-password", { method: "POST", body: JSON.stringify({ currentPassword, newPassword }) }),
+  emailStatus: () => request("/auth/email-status"),
+  forgotPassword: ({ email }) =>
+    request("/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) }),
+  resetPassword: ({ token, newPassword }) =>
+    request("/auth/reset-password", { method: "POST", body: JSON.stringify({ token, newPassword }) }),
 
   listUsers: () => request("/users"),
   createUser: (data) => request("/users", { method: "POST", body: JSON.stringify(data) }),
