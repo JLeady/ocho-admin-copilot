@@ -55,6 +55,14 @@ export async function requireAuth(req, res, next) {
     if (!user || !user.active) {
       return res.status(401).json({ error: "Not authenticated" });
     }
+    // Sessions created before "log out of all other sessions" existed have
+    // no sessionVersion of their own — treat that as version 0, matching a
+    // fresh user's default, so shipping this feature doesn't log everyone
+    // out. Only sessions issued before a deliberate "log out everywhere"
+    // fall out of sync and get rejected here.
+    if ((req.session.sessionVersion ?? 0) !== user.sessionVersion) {
+      return req.session.destroy(() => res.status(401).json({ error: "Not authenticated" }));
+    }
     req.user = user;
     next();
   } catch (err) {

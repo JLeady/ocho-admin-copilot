@@ -138,6 +138,11 @@ the thing.
   first), find your user object, and set `"role": "owner"` and
   `"active": true`. Automatic backups in `server/data/backups/` have older
   copies if you need to see what it looked like before.
+- **Account settings** (gear icon, top right of the sidebar): change your
+  display name, change your password voluntarily (not just when forced),
+  and **log out of all other sessions** — invalidates every other logged-in
+  session for your account except the one you're using, in case a temp
+  password got shared or you're still logged in on an old/shared device.
 
 ## Forgot password
 

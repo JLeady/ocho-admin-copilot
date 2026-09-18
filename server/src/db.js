@@ -68,6 +68,9 @@ function normalizeUser(user) {
     mustChangePassword: !!user.mustChangePassword,
     resetToken: user.resetToken ?? null,
     resetTokenExpiresAt: user.resetTokenExpiresAt ?? null,
+    // Bumped by "log out of all other sessions" — a logged-in session's own
+    // copy (req.session.sessionVersion) has to match this or it's rejected.
+    sessionVersion: typeof user.sessionVersion === "number" ? user.sessionVersion : 0,
   };
 }
 

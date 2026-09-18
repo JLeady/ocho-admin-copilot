@@ -89,12 +89,14 @@ router.post("/bootstrap", async (req, res, next) => {
       passwordHash: hashPassword(password),
       mustChangePassword: false,
       active: true,
+      sessionVersion: 0,
       createdAt: new Date().toISOString(),
     };
     db.users.push(user);
     await writeDb(db);
 
     req.session.userId = user.id;
+    req.session.sessionVersion = user.sessionVersion;
     res.status(201).json({ user: publicUser(user) });
   } catch (err) {
     next(err);
@@ -123,6 +125,7 @@ router.post("/login", async (req, res, next) => {
 
     attempts.delete(normalizedEmail);
     req.session.userId = user.id;
+    req.session.sessionVersion = user.sessionVersion;
     res.json({ user: publicUser(user) });
   } catch (err) {
     next(err);
@@ -138,6 +141,42 @@ router.post("/logout", (req, res) => {
 
 router.get("/me", requireAuth, (req, res) => {
   res.json({ user: publicUser(req.user) });
+});
+
+router.patch("/me", requireAuth, async (req, res, next) => {
+  try {
+    const name = String(req.body?.name ?? "").trim();
+    if (!name) return res.status(400).json({ error: "Name can't be empty" });
+    if (name.length > 100) return res.status(400).json({ error: "Name is too long" });
+
+    const db = await readDb();
+    const user = db.users.find((u) => u.id === req.user.id);
+    user.name = name;
+    await writeDb(db);
+
+    res.json({ user: publicUser(user) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Invalidates every other session for this account (e.g. a temp password
+// leaked, or you're logged in on a shared/old device) by bumping
+// sessionVersion — requireAuth rejects any session carrying the old value.
+// The current request's own session is immediately re-stamped with the new
+// version so the person who asked for this doesn't get logged out too.
+router.post("/logout-other-sessions", requireAuth, async (req, res, next) => {
+  try {
+    const db = await readDb();
+    const user = db.users.find((u) => u.id === req.user.id);
+    user.sessionVersion += 1;
+    await writeDb(db);
+
+    req.session.sessionVersion = user.sessionVersion;
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // ---- forgot password ----
@@ -207,6 +246,7 @@ router.post("/reset-password", async (req, res, next) => {
     await writeDb(db);
 
     req.session.userId = user.id;
+    req.session.sessionVersion = user.sessionVersion;
     res.json({ user: publicUser(user) });
   } catch (err) {
     next(err);

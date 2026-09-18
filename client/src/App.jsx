@@ -304,11 +304,11 @@ export default function App() {
   if (phase === "login") return <Login onSuccess={enterAsUser} />;
   if (phase === "force-password") return <ForcePasswordChange onSuccess={enterAsUser} />;
 
-  return <OchoAdminCopilot currentUser={currentUser} onLogout={handleLogout} />;
+  return <OchoAdminCopilot currentUser={currentUser} onLogout={handleLogout} onUserUpdate={setCurrentUser} />;
 }
 
 // ---------- main authenticated app ----------
-function OchoAdminCopilot({ currentUser, onLogout }) {
+function OchoAdminCopilot({ currentUser, onLogout, onUserUpdate }) {
   const [clients, setClients] = useState(null); // null = loading
   const [selectedId, setSelectedId] = useState(null);
   const [clientModal, setClientModal] = useState(null); // { mode: 'add' | 'edit', client? }
@@ -841,7 +841,13 @@ function OchoAdminCopilot({ currentUser, onLogout }) {
         />
       )}
 
-      {accountOpen && <AccountModal currentUser={currentUser} onClose={() => setAccountOpen(false)} />}
+      {accountOpen && (
+        <AccountModal
+          currentUser={currentUser}
+          onClose={() => setAccountOpen(false)}
+          onUserUpdate={onUserUpdate}
+        />
+      )}
 
       {confirmDialog && (
         <ConfirmDialog
@@ -1247,13 +1253,23 @@ function AddUserForm({ onCancel, onSave }) {
 // Distinct from ForcePasswordChange (Login.jsx, only shown after an admin
 // issues a temp password) — this is any logged-in user choosing to change
 // their own password, reachable any time from the sidebar.
-function AccountModal({ currentUser, onClose }) {
+function AccountModal({ currentUser, onClose, onUserUpdate }) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+
+  const [name, setName] = useState(currentUser.name);
+  const [nameLoading, setNameLoading] = useState(false);
+  const [nameError, setNameError] = useState("");
+  const [nameSuccess, setNameSuccess] = useState(false);
+
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionsError, setSessionsError] = useState("");
+  const [sessionsSuccess, setSessionsSuccess] = useState(false);
+  const [confirmingSessions, setConfirmingSessions] = useState(false);
 
   async function submit(e) {
     e.preventDefault();
@@ -1281,9 +1297,46 @@ function AccountModal({ currentUser, onClose }) {
     }
   }
 
+  async function submitName(e) {
+    e.preventDefault();
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setNameError("Name can't be empty.");
+      return;
+    }
+    setNameLoading(true);
+    setNameError("");
+    setNameSuccess(false);
+    try {
+      const { user } = await api.updateProfile({ name: trimmed });
+      onUserUpdate?.(user);
+      setName(user.name);
+      setNameSuccess(true);
+    } catch (err) {
+      setNameError(err.message || "Couldn't save your name — check connection and try again.");
+    } finally {
+      setNameLoading(false);
+    }
+  }
+
+  async function logoutOtherSessions() {
+    setSessionsLoading(true);
+    setSessionsError("");
+    setSessionsSuccess(false);
+    try {
+      await api.logoutOtherSessions();
+      setSessionsSuccess(true);
+      setConfirmingSessions(false);
+    } catch (err) {
+      setSessionsError(err.message || "Couldn't do that — check connection and try again.");
+    } finally {
+      setSessionsLoading(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center px-4" style={{ background: "rgba(20,20,40,0.45)" }}>
-      <div className="w-full max-w-sm rounded-2xl p-6" style={{ background: CARD }}>
+      <div className="w-full max-w-sm rounded-2xl p-6 max-h-[85vh] overflow-y-auto" style={{ background: CARD }}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-extrabold text-lg tracking-tight">Account</h2>
           <button onClick={onClose}><X size={18} color={MUTED} /></button>
@@ -1296,8 +1349,31 @@ function AccountModal({ currentUser, onClose }) {
           </div>
         </div>
 
+        <Label>Display name</Label>
+        <form onSubmit={submitName} className="mt-1 mb-5">
+          <input
+            type="text" value={name} onChange={(e) => setName(e.target.value)}
+            placeholder="Your name" className={`${inputClass} mb-2`} style={{ borderColor: BORDER }}
+          />
+          {nameError && <p className="text-sm mb-2" style={{ color: RED }}>{nameError}</p>}
+          {nameSuccess && (
+            <p className="text-sm mb-2 flex items-center gap-1.5" style={{ color: GREEN }}>
+              <CheckCircle2 size={14} /> Name updated.
+            </p>
+          )}
+          <button
+            type="submit"
+            disabled={nameLoading || !name.trim() || name.trim() === currentUser.name}
+            className="w-full rounded-lg py-2 text-sm font-semibold transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
+            style={{ background: BG, color: INK, border: `1px solid ${BORDER}` }}
+          >
+            {nameLoading && <Loader2 size={14} className="animate-spin" />}
+            {nameLoading ? "Saving…" : "Save name"}
+          </button>
+        </form>
+
         <Label>Change password</Label>
-        <form onSubmit={submit} className="mt-1">
+        <form onSubmit={submit} className="mt-1 mb-5">
           <input
             type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)}
             placeholder="Current password" className={`${inputClass} mb-2`} style={{ borderColor: BORDER }}
@@ -1328,6 +1404,48 @@ function AccountModal({ currentUser, onClose }) {
             {loading ? "Saving…" : "Change password"}
           </button>
         </form>
+
+        <Label>Sessions</Label>
+        <div className="mt-1">
+          <p className="text-xs mb-2" style={{ color: MUTED }}>
+            Signs you out everywhere except this device — useful if a temp password got shared or you're logged in somewhere you shouldn't be.
+          </p>
+          {sessionsError && <p className="text-sm mb-2" style={{ color: RED }}>{sessionsError}</p>}
+          {sessionsSuccess && (
+            <p className="text-sm mb-2 flex items-center gap-1.5" style={{ color: GREEN }}>
+              <CheckCircle2 size={14} /> Every other session has been logged out.
+            </p>
+          )}
+          {confirmingSessions ? (
+            <div className="flex gap-2">
+              <button
+                onClick={logoutOtherSessions}
+                disabled={sessionsLoading}
+                className="flex-1 rounded-lg py-2 text-sm font-semibold text-white transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
+                style={{ background: RED }}
+              >
+                {sessionsLoading && <Loader2 size={14} className="animate-spin" />}
+                {sessionsLoading ? "Working…" : "Confirm log out everywhere else"}
+              </button>
+              <button
+                onClick={() => setConfirmingSessions(false)}
+                disabled={sessionsLoading}
+                className="rounded-lg py-2 px-3 text-sm font-semibold"
+                style={{ color: MUTED, border: `1px solid ${BORDER}` }}
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => { setConfirmingSessions(true); setSessionsSuccess(false); setSessionsError(""); }}
+              className="w-full rounded-lg py-2 text-sm font-semibold transition-opacity"
+              style={{ background: BG, color: INK, border: `1px solid ${BORDER}` }}
+            >
+              Log out of all other sessions
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
