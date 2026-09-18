@@ -7,6 +7,7 @@ import {
 import { api } from "./api";
 import Login, { Setup, ForcePasswordChange, ResetPassword } from "./Login.jsx";
 import { downloadReportPdf } from "./ReportPdf.jsx";
+import { ErrorBoundary } from "./ErrorBoundary.jsx";
 
 // ---------- design tokens ----------
 const INK = "#1A1A2E";
@@ -320,6 +321,7 @@ function OchoAdminCopilot({ currentUser, onLogout }) {
   const [listFilter, setListFilter] = useState("all"); // 'all' | 'attention'
   const [searchQuery, setSearchQuery] = useState("");
   const [teamOpen, setTeamOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
 
   function askConfirm({ title, message, confirmLabel, danger = true, onConfirm }) {
     setConfirmDialog({
@@ -709,12 +711,16 @@ function OchoAdminCopilot({ currentUser, onLogout }) {
           <span className="text-[11px]" style={{ color: MUTED }}>14+ days</span>
         </div>
         <div className="px-5 py-3 flex items-center justify-between" style={{ borderTop: `1px solid ${BORDER}` }}>
-          <div className="min-w-0">
+          <button
+            onClick={() => setAccountOpen(true)}
+            className="min-w-0 text-left transition-opacity hover:opacity-70"
+            title="Account settings"
+          >
             <div className="text-xs font-semibold truncate">{currentUser.name}</div>
             <div className="text-[10px] font-mono uppercase tracking-widest" style={{ color: MUTED }}>
               {currentUser.role}
             </div>
-          </div>
+          </button>
           {currentUser.role === "owner" && (
             <button
               onClick={() => setTeamOpen(true)}
@@ -745,6 +751,15 @@ function OchoAdminCopilot({ currentUser, onLogout }) {
 
       {/* Main panel */}
       <div className={`flex-1 flex flex-col overflow-hidden ${mobileShowDetail ? "flex" : "hidden md:flex"}`}>
+        {/* Keyed by the selected client so switching clients (or going back
+            to the dashboard) remounts this boundary — a crash on one
+            client's tab doesn't strand you there. */}
+        <ErrorBoundary
+          key={selected?.id || "home"}
+          fill
+          title="This client hit a snag"
+          message="Something went wrong showing this section. Your data is safe — try again, or pick another client."
+        >
         {selected ? (
           <ClientPanel
             client={selected}
@@ -783,6 +798,7 @@ function OchoAdminCopilot({ currentUser, onLogout }) {
             onAddClient={() => setClientModal({ mode: "add" })}
           />
         )}
+        </ErrorBoundary>
       </div>
 
       {clientModal && (
@@ -815,6 +831,8 @@ function OchoAdminCopilot({ currentUser, onLogout }) {
           handleApiError={handleApiError}
         />
       )}
+
+      {accountOpen && <AccountModal currentUser={currentUser} onClose={() => setAccountOpen(false)} />}
 
       {confirmDialog && (
         <ConfirmDialog
@@ -1211,6 +1229,96 @@ function AddUserForm({ onCancel, onSave }) {
         <button onClick={onCancel} className="rounded-lg py-2 px-4 text-sm font-semibold" style={{ color: MUTED }}>
           Cancel
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------- account settings (voluntary password change) ----------
+// Distinct from ForcePasswordChange (Login.jsx, only shown after an admin
+// issues a temp password) — this is any logged-in user choosing to change
+// their own password, reachable any time from the sidebar.
+function AccountModal({ currentUser, onClose }) {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      setError("Passwords don't match.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    setSuccess(false);
+    try {
+      await api.changePassword({ currentPassword, newPassword });
+      setSuccess(true);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err) {
+      setError(err.message || "Couldn't change your password — check connection and try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-30 flex items-center justify-center px-4" style={{ background: "rgba(20,20,40,0.45)" }}>
+      <div className="w-full max-w-sm rounded-2xl p-6" style={{ background: CARD }}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-extrabold text-lg tracking-tight">Account</h2>
+          <button onClick={onClose}><X size={18} color={MUTED} /></button>
+        </div>
+
+        <div className="mb-5 p-3 rounded-lg" style={{ background: BG }}>
+          <div className="font-semibold text-sm truncate">{currentUser.name}</div>
+          <div className="text-xs truncate" style={{ color: MUTED }}>
+            {currentUser.email} · {currentUser.role}
+          </div>
+        </div>
+
+        <Label>Change password</Label>
+        <form onSubmit={submit} className="mt-1">
+          <input
+            type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)}
+            placeholder="Current password" className={`${inputClass} mb-2`} style={{ borderColor: BORDER }}
+          />
+          <input
+            type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="New password (min. 8 characters)" className={`${inputClass} mb-2`} style={{ borderColor: BORDER }}
+          />
+          <input
+            type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="Confirm new password" className={`${inputClass} mb-3`} style={{ borderColor: BORDER }}
+          />
+
+          {error && <p className="text-sm mb-3" style={{ color: RED }}>{error}</p>}
+          {success && (
+            <p className="text-sm mb-3 flex items-center gap-1.5" style={{ color: GREEN }}>
+              <CheckCircle2 size={14} /> Password changed.
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading || !currentPassword || !newPassword || !confirmPassword}
+            className="w-full rounded-lg py-2.5 text-sm font-semibold text-white transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
+            style={{ background: ACCENT }}
+          >
+            {loading && <Loader2 size={15} className="animate-spin" />}
+            {loading ? "Saving…" : "Change password"}
+          </button>
+        </form>
       </div>
     </div>
   );
