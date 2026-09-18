@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import {
   Plus, X, Copy, Check, Clock, Mail, FileText, Sparkles, Loader2,
   Building2, ChevronLeft, AlertCircle, CheckCircle2, StickyNote, Send, Pencil, Trash2, LogOut, RotateCcw,
-  AlertTriangle, Users, CalendarDays, CalendarPlus, Download, Search,
+  AlertTriangle, Users, CalendarDays, CalendarPlus, Download, Search, Settings,
 } from "lucide-react";
 import { api } from "./api";
 import Login, { Setup, ForcePasswordChange, ResetPassword } from "./Login.jsx";
@@ -583,25 +583,38 @@ function OchoAdminCopilot({ currentUser, onLogout }) {
         }`}
         style={{ borderColor: BORDER, background: CARD }}
       >
-        <button
-          onClick={() => {
-            setSelectedId(null);
-            setMobileShowDetail(false);
-          }}
-          className="px-5 pt-5 pb-4 text-left transition-opacity hover:opacity-80"
+        <div
+          className="px-5 pt-5 pb-4 flex items-start justify-between gap-2"
           style={{ borderBottom: `1px solid ${BORDER}` }}
-          title="Back to home"
         >
-          <div className="flex items-baseline gap-0.5">
-            <span className="font-sans font-extrabold text-xl tracking-tight">Ocho</span>
-            <span className="font-sans font-extrabold text-xl tracking-tight" style={{ color: ACCENT }}>
-              .AI
-            </span>
-          </div>
-          <div className="font-mono text-[10px] uppercase tracking-widest mt-1" style={{ color: MUTED }}>
-            Admin Copilot
-          </div>
-        </button>
+          <button
+            onClick={() => {
+              setSelectedId(null);
+              setMobileShowDetail(false);
+            }}
+            className="text-left transition-opacity hover:opacity-80"
+            title="Back to home"
+          >
+            <div className="flex items-baseline gap-0.5">
+              <span className="font-sans font-extrabold text-xl tracking-tight">Ocho</span>
+              <span className="font-sans font-extrabold text-xl tracking-tight" style={{ color: ACCENT }}>
+                .AI
+              </span>
+            </div>
+            <div className="font-mono text-[10px] uppercase tracking-widest mt-1" style={{ color: MUTED }}>
+              Admin Copilot
+            </div>
+          </button>
+          <button
+            onClick={() => setAccountOpen(true)}
+            className="flex items-center justify-center rounded-full transition-colors hover:opacity-70 flex-shrink-0"
+            style={{ width: 28, height: 28, background: BG, color: MUTED }}
+            title="Account settings"
+            aria-label="Account settings"
+          >
+            <Settings size={14} />
+          </button>
+        </div>
 
         <div className="px-5 py-3 flex items-center justify-between">
           <Label>Clients ({clients.length})</Label>
@@ -710,17 +723,13 @@ function OchoAdminCopilot({ currentUser, onLogout }) {
           <Dot color={RED} size={7} />
           <span className="text-[11px]" style={{ color: MUTED }}>14+ days</span>
         </div>
-        <div className="px-5 py-3 flex items-center justify-between" style={{ borderTop: `1px solid ${BORDER}` }}>
-          <button
-            onClick={() => setAccountOpen(true)}
-            className="min-w-0 text-left transition-opacity hover:opacity-70"
-            title="Account settings"
-          >
+        <div className="px-5 py-3 flex items-center justify-between gap-2" style={{ borderTop: `1px solid ${BORDER}` }}>
+          <div className="min-w-0">
             <div className="text-xs font-semibold truncate">{currentUser.name}</div>
             <div className="text-[10px] font-mono uppercase tracking-widest" style={{ color: MUTED }}>
               {currentUser.role}
             </div>
-          </button>
+          </div>
           {currentUser.role === "owner" && (
             <button
               onClick={() => setTeamOpen(true)}
