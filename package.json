@@ -1,7 +1,7 @@
 {
   "name": "ocho-admin-copilot",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Ocho AI — internal admin copilot for Ocho The Agency",
   "author": "Ocho The Agency",
   "main": "electron/main.js",
@@ -15,11 +15,13 @@
     "start": "npm run build && npm run start -w server",
     "start:server-only": "npm run start -w server",
     "electron:dev": "npm run build && electron .",
-    "electron:build": "npm run build && electron-builder"
+    "electron:build": "npm run build && electron-builder",
+    "electron:publish": "npm run build && electron-builder --publish always"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
     "dotenv": "^17.4.2",
+    "electron-updater": "^6.8.9",
     "express": "^5.2.1",
     "express-session": "^1.19.0",
     "nodemailer": "^10.0.10",
@@ -49,8 +51,14 @@
       "icon": "electron/icon.ico"
     },
     "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "oneClick": true,
+      "perMachine": false
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "JLeady",
+      "repo": "ocho-admin-copilot",
+      "releaseType": "release"
     }
   }
 }

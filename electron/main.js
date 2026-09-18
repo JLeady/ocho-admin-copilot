@@ -4,7 +4,8 @@
 // its data directory at a proper per-user app-data folder instead of a
 // folder next to the installed code, and opens a window at it.
 
-const { app, BrowserWindow, Menu, shell } = require("electron");
+const { app, BrowserWindow, Menu, shell, dialog } = require("electron");
+const { autoUpdater } = require("electron-updater");
 const path = require("path");
 const fs = require("fs");
 const { pathToFileURL } = require("url");
@@ -127,3 +128,36 @@ app.whenReady().then(async () => {
 app.on("window-all-closed", () => {
   app.quit();
 });
+
+// ---- auto-update ----
+// Checks GitHub Releases (configured under "publish" in package.json) once
+// per launch. Downloads silently in the background if there's a newer
+// version, then asks once before restarting into it — nobody has to know
+// where to find or how to run a new installer themselves. Only runs in a
+// packaged build: there's no meaningful "update" to check for while
+// developing, and checkForUpdates() errors on an unpackaged app anyway.
+if (app.isPackaged) {
+  autoUpdater.autoDownload = true;
+
+  autoUpdater.on("update-downloaded", async (info) => {
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: "info",
+      title: "Update ready",
+      message: `Ocho AI ${info.version} has downloaded and is ready to install.`,
+      buttons: ["Restart now", "Later"],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (response === 0) autoUpdater.quitAndInstall();
+  });
+
+  // Silent by design: no internet, no GitHub release yet, rate-limited —
+  // none of that should ever block someone from just using the app.
+  autoUpdater.on("error", (err) => {
+    console.error("Auto-update check failed:", err);
+  });
+
+  app.whenReady().then(() => {
+    autoUpdater.checkForUpdates().catch(() => {});
+  });
+}
