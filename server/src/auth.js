@@ -6,7 +6,10 @@ import { readDb } from "./db.js";
 
 const FileStore = FileStoreFactory(session);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SESSIONS_DIR = path.join(__dirname, "..", "data", "sessions");
+// Mirrors the same OCHO_DATA_DIR override as db.js, so sessions live next to
+// db.json whichever folder that ends up being (see electron/main.js).
+const DATA_DIR = process.env.OCHO_DATA_DIR || path.join(__dirname, "..", "data");
+const SESSIONS_DIR = path.join(DATA_DIR, "sessions");
 
 export function sessionMiddleware() {
   return session({

@@ -3,6 +3,8 @@
   "private": true,
   "version": "0.1.0",
   "description": "Ocho AI — internal admin copilot for Ocho The Agency",
+  "author": "Ocho The Agency",
+  "main": "electron/main.js",
   "workspaces": [
     "server",
     "client"
@@ -11,9 +13,44 @@
     "dev": "concurrently -n SERVER,CLIENT -c blue,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
     "build": "npm run build -w client",
     "start": "npm run build && npm run start -w server",
-    "start:server-only": "npm run start -w server"
+    "start:server-only": "npm run start -w server",
+    "electron:dev": "npm run build && electron .",
+    "electron:build": "npm run build && electron-builder"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.120.0",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "nodemailer": "^10.0.10",
+    "session-file-store": "^1.5.0"
   },
   "devDependencies": {
-    "concurrently": "^10.0.5"
+    "concurrently": "^10.0.5",
+    "electron": "^44.4.2",
+    "electron-builder": "^26.0.20"
+  },
+  "build": {
+    "appId": "com.ochotheagency.ochoai",
+    "productName": "Ocho AI",
+    "asar": false,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**/*",
+      "server/package.json",
+      "server/src/**/*",
+      "client/dist/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "electron/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }

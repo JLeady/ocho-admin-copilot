@@ -16,7 +16,10 @@ export const CONTENT_PLATFORMS = ["Instagram", "Facebook", "TikTok", "LinkedIn",
 export const CONTENT_STATUSES = ["planned", "posted"];
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(__dirname, "..", "data");
+// The desktop app points this at its own per-user app-data folder (see
+// electron/main.js) instead of a folder next to the installed code, which
+// desktop installers shouldn't write into. Local dev keeps the old default.
+const DATA_DIR = process.env.OCHO_DATA_DIR || path.join(__dirname, "..", "data");
 const DB_FILE = path.join(DATA_DIR, "db.json");
 const BACKUP_DIR = path.join(DATA_DIR, "backups");
 const MAX_BACKUPS = 50;

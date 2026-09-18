@@ -47,6 +47,9 @@ ocho-admin-copilot/
       App.jsx          main app (client list, panels, tabs)
       Login.jsx        login screen + first-run setup + forced password change
       api.js           fetch wrapper for the backend
+  electron/          desktop app shell (see "Desktop app" below)
+    main.js            starts the server above inside a native window
+    icon.ico           app/installer icon
 ```
 
 ## Setup
@@ -111,6 +114,76 @@ This builds the frontend and serves it directly from the Express server —
 just `http://localhost:3001`, one process, no Vite. Use `npm run dev` while
 you're actively changing code; use `npm start` once you want to just *run*
 the thing.
+
+## Desktop app
+
+Ocho AI also runs as a real installable Windows desktop app — a double-click
+icon, its own window, no terminal, no browser tab — instead of a hosted
+website. Each install is fully standalone: its own local database, no
+syncing between Christie's and an employee's copy. That's a deliberate
+choice, not a limitation to fix later — employees don't need to see the same
+client data Christie does, so there's nothing to keep in sync, and it avoids
+ever needing to host this (and everything that comes with that: HTTPS,
+public exposure, uptime).
+
+It's built with Electron (`electron/main.js`), which starts the exact same
+Express server used by `npm start` inside a native window instead of a
+browser tab — no app logic is duplicated or reimplemented for the desktop
+build.
+
+### Building the installer
+
+```bash
+npm run electron:build
+```
+
+Produces a Windows installer under `release/`. Anyone running it gets a
+normal "Ocho AI" Start Menu entry.
+
+### Where a desktop install keeps its data
+
+Instead of `server/data/` (which is next to the installed code — installers
+shouldn't write there), each install keeps its database, backups, sessions,
+and a per-install session-signing secret under its own Windows per-user
+app-data folder: `%APPDATA%\Ocho AI\data`. Back it up the same way as
+`server/data/db.json` — it's still just a JSON file.
+
+### Giving an install its Anthropic API key
+
+The installer never bundles the real `ANTHROPIC_API_KEY` — anything shipped
+inside an installer can eventually be extracted, so a real secret has no
+business being in there. Instead, whoever wants AI drafting/report
+generation enabled on their machine creates one file by hand:
+
+```
+%APPDATA%\Ocho AI\.env
+```
+
+with the same `ANTHROPIC_API_KEY=` (and optionally the `SMTP_*` vars, for
+password-reset emails) as `server/.env.example`. An install with no `.env`
+file works completely normally otherwise — accounts, clients, notes,
+billing, calendar — it just shows a clear message instead of drafting if
+someone tries the AI features. That's the expected setup for an employee's
+install: only Christie's (or whoever's) copy needs the real key.
+
+### Adding a team member on a desktop install
+
+Exactly the same as before — the owner (whoever set up that install first)
+opens **Team** and adds them there. Because installs don't sync, this only
+grants access to *that one install* — if someone needs their own copy on
+their own computer, they need their own install of the app, and the owner
+sets up their account fresh on that one too, since each install's users are
+local to it.
+
+### Developing against the desktop shell
+
+```bash
+npm run electron:dev
+```
+
+Builds the client and opens it in the Electron window instead of a browser
+tab — useful for testing the packaged experience without building a full
+installer every time.
 
 ## Accounts & team
 

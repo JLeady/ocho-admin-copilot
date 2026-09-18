@@ -14,7 +14,7 @@ function getClient() {
   if (!client) {
     if (!process.env.ANTHROPIC_API_KEY) {
       throw new Error(
-        "ANTHROPIC_API_KEY is not set. Add it to server/.env — see server/.env.example."
+        "AI drafting isn't set up on this install — ask the account owner to add an ANTHROPIC_API_KEY."
       );
     }
     client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
