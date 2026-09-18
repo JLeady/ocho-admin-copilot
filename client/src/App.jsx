@@ -584,7 +584,7 @@ function OchoAdminCopilot({ currentUser, onLogout }) {
         style={{ borderColor: BORDER, background: CARD }}
       >
         <div
-          className="px-5 pt-5 pb-4 flex items-start justify-between gap-2"
+          className="px-5 pt-5 pb-4 flex items-center justify-between gap-2"
           style={{ borderBottom: `1px solid ${BORDER}` }}
         >
           <button
