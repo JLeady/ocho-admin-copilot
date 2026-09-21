@@ -1271,6 +1271,11 @@ function AccountModal({ currentUser, onClose, onUserUpdate }) {
   const [sessionsSuccess, setSessionsSuccess] = useState(false);
   const [confirmingSessions, setConfirmingSessions] = useState(false);
 
+  const [appVersion, setAppVersion] = useState(null);
+  useEffect(() => {
+    api.version().then(({ version }) => setAppVersion(version)).catch(() => {});
+  }, []);
+
   async function submit(e) {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
@@ -1446,6 +1451,12 @@ function AccountModal({ currentUser, onClose, onUserUpdate }) {
             </button>
           )}
         </div>
+
+        {appVersion && (
+          <div className="mt-5 pt-4 text-center text-[11px] font-mono" style={{ color: MUTED, borderTop: `1px solid ${BORDER}` }}>
+            Ocho AI v{appVersion}
+          </div>
+        )}
       </div>
     </div>
   );

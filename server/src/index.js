@@ -16,6 +16,12 @@ const PORT = process.env.PORT || 3001;
 app.use(express.json({ limit: "1mb" }));
 app.use(sessionMiddleware());
 
+// Electron's main process sets this to app.getVersion() (the packaged
+// app's real version); local dev has no packaged version, so it just says so.
+app.get("/api/version", (req, res) => {
+  res.json({ version: process.env.OCHO_APP_VERSION || "dev" });
+});
+
 app.use("/api/auth", authRoutes);
 // Team management (add/deactivate accounts, reset passwords) is owner-only;
 // everything else is shared across every logged-in user.

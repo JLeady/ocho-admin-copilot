@@ -39,6 +39,7 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  version: () => request("/version"),
   bootstrapStatus: () => request("/auth/bootstrap-status"),
   bootstrap: ({ name, email, password }) =>
     request("/auth/bootstrap", { method: "POST", body: JSON.stringify({ name, email, password }) }),

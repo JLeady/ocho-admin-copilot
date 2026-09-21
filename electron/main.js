@@ -37,6 +37,7 @@ async function startServer() {
   loadEnvFile(path.join(userDataDir, ".env"));
 
   process.env.OCHO_DATA_DIR = dataDir;
+  process.env.OCHO_APP_VERSION = app.getVersion();
   process.env.PORT = String(PORT);
   process.env.SESSION_SECRET =
     process.env.SESSION_SECRET || readOrCreatePersistedSecret(userDataDir);
