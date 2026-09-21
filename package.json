@@ -16,7 +16,7 @@
     "start:server-only": "npm run start -w server",
     "electron:dev": "npm run build && electron .",
     "electron:build": "npm run build && electron-builder",
-    "electron:publish": "npm run build && electron-builder --publish always && node electron/publish-release.js"
+    "electron:publish": "npm run build && electron-builder && node electron/publish-release.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
