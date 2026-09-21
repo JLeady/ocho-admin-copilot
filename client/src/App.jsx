@@ -230,6 +230,33 @@ function Toast({ message, type = "error", onDismiss }) {
   );
 }
 
+// Slim top bar shown when the desktop app has silently downloaded a newer
+// version (see electron/preload.js — window.ocho only exists inside the
+// Electron shell, never in a plain browser). An earlier version used
+// Electron's native dialog.showMessageBox for this, but that dialog could
+// end up behind the main window's focus/z-order on Windows — visible, but
+// only keyboard-reachable, not clickable. This avoids that entirely.
+function UpdateBanner({ version, onDismiss }) {
+  return (
+    <div
+      className="fixed top-0 inset-x-0 z-50 flex items-center justify-center gap-3 px-4 py-2 text-sm text-white"
+      style={{ background: ACCENT }}
+    >
+      <span>Ocho AI {version} is ready to install.</span>
+      <button
+        onClick={() => window.ocho?.restartAndInstall()}
+        className="rounded-md px-2.5 py-1 text-xs font-semibold"
+        style={{ background: "rgba(255,255,255,0.2)" }}
+      >
+        Restart now
+      </button>
+      <button onClick={onDismiss} className="opacity-80 hover:opacity-100" title="Dismiss">
+        <X size={14} />
+      </button>
+    </div>
+  );
+}
+
 // A reset link looks like http://.../?token=... — pulled once at module load
 // so it survives whatever the loading/setup/login check below decides, and
 // cleared from the URL once it's been consumed (success or cancel) so a
@@ -249,6 +276,14 @@ export default function App() {
   const [resetToken] = useState(getResetTokenFromUrl);
   const [phase, setPhase] = useState(resetToken ? "reset-password" : "loading");
   const [currentUser, setCurrentUser] = useState(null);
+  const [updateVersion, setUpdateVersion] = useState(null);
+
+  useEffect(() => {
+    // window.ocho only exists inside the packaged Electron app (see
+    // electron/preload.js) — undefined in the dev browser, which is fine,
+    // there's nothing to auto-update there anyway.
+    return window.ocho?.onUpdateReady(setUpdateVersion);
+  }, []);
 
   useEffect(() => {
     if (resetToken) return; // skip the normal session check — this is a standalone flow
@@ -277,8 +312,9 @@ export default function App() {
     setPhase("login");
   }
 
+  let content;
   if (phase === "reset-password") {
-    return (
+    content = (
       <ResetPassword
         token={resetToken}
         onSuccess={(user) => {
@@ -291,20 +327,28 @@ export default function App() {
         }}
       />
     );
-  }
-
-  if (phase === "loading") {
-    return (
+  } else if (phase === "loading") {
+    content = (
       <div className="flex items-center justify-center h-screen" style={{ background: BG }}>
         <Loader2 className="animate-spin" color={ACCENT} size={28} />
       </div>
     );
+  } else if (phase === "setup") {
+    content = <Setup onSuccess={enterAsUser} />;
+  } else if (phase === "login") {
+    content = <Login onSuccess={enterAsUser} />;
+  } else if (phase === "force-password") {
+    content = <ForcePasswordChange onSuccess={enterAsUser} />;
+  } else {
+    content = <OchoAdminCopilot currentUser={currentUser} onLogout={handleLogout} onUserUpdate={setCurrentUser} />;
   }
-  if (phase === "setup") return <Setup onSuccess={enterAsUser} />;
-  if (phase === "login") return <Login onSuccess={enterAsUser} />;
-  if (phase === "force-password") return <ForcePasswordChange onSuccess={enterAsUser} />;
 
-  return <OchoAdminCopilot currentUser={currentUser} onLogout={handleLogout} onUserUpdate={setCurrentUser} />;
+  return (
+    <>
+      {updateVersion && <UpdateBanner version={updateVersion} onDismiss={() => setUpdateVersion(null)} />}
+      {content}
+    </>
+  );
 }
 
 // ---------- main authenticated app ----------

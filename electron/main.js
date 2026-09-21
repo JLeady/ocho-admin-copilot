@@ -4,7 +4,7 @@
 // its data directory at a proper per-user app-data folder instead of a
 // folder next to the installed code, and opens a window at it.
 
-const { app, BrowserWindow, Menu, shell, dialog } = require("electron");
+const { app, BrowserWindow, Menu, shell, ipcMain } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const path = require("path");
 const fs = require("fs");
@@ -90,6 +90,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: path.join(__dirname, "preload.js"),
     },
   });
 
@@ -131,25 +132,21 @@ app.on("window-all-closed", () => {
 });
 
 // ---- auto-update ----
-// Checks GitHub Releases (configured under "publish" in package.json) once
-// per launch. Downloads silently in the background if there's a newer
-// version, then asks once before restarting into it — nobody has to know
-// where to find or how to run a new installer themselves. Only runs in a
-// packaged build: there's no meaningful "update" to check for while
-// developing, and checkForUpdates() errors on an unpackaged app anyway.
+// Checks GitHub Releases (published by electron/publish-release.js) once per
+// launch. Downloads silently in the background if there's a newer version,
+// then tells the renderer so it can show an in-app banner — an earlier
+// version of this used Electron's native dialog.showMessageBox, but that
+// dialog could end up behind the main window's focus/z-order on Windows,
+// receiving keyboard input but not mouse clicks. An in-app banner is both
+// more reliable and matches Ocho AI's own design instead of looking like a
+// generic Windows popup. Only runs in a packaged build: there's no
+// meaningful "update" to check for while developing, and checkForUpdates()
+// errors on an unpackaged app anyway.
 if (app.isPackaged) {
   autoUpdater.autoDownload = true;
 
-  autoUpdater.on("update-downloaded", async (info) => {
-    const { response } = await dialog.showMessageBox(mainWindow, {
-      type: "info",
-      title: "Update ready",
-      message: `Ocho AI ${info.version} has downloaded and is ready to install.`,
-      buttons: ["Restart now", "Later"],
-      defaultId: 0,
-      cancelId: 1,
-    });
-    if (response === 0) autoUpdater.quitAndInstall();
+  autoUpdater.on("update-downloaded", (info) => {
+    mainWindow?.webContents.send("update-ready", info.version);
   });
 
   // Silent by design: no internet, no GitHub release yet, rate-limited —
@@ -161,4 +158,6 @@ if (app.isPackaged) {
   app.whenReady().then(() => {
     autoUpdater.checkForUpdates().catch(() => {});
   });
+
+  ipcMain.on("restart-and-install", () => autoUpdater.quitAndInstall());
 }
