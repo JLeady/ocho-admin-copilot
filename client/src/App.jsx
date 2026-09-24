@@ -1646,11 +1646,21 @@ function ClientModal({ mode = "add", initial, onClose, onSave }) {
 }
 
 // ---------- client detail panel ----------
+// Caps how many AI drafts/reports can be generated for one client before
+// someone has to reopen the client to get more — not a hard cost concern
+// (each generation costs a small fraction of a cent), but a deliberate
+// guardrail against absent-minded repeated regenerating. Shared across the
+// Email and Report tabs since it's a per-client budget, not per-tab; resets
+// automatically when a different client is selected, because ClientPanel
+// itself remounts then (see the keyed ErrorBoundary around it in App.jsx).
+const MAX_AI_CALLS_PER_CLIENT_SESSION = 3;
+
 function ClientPanel({
   client, tab, setTab, onAddNote, onEditNote, onDeleteNote, onDraftSaved, onDeleteDraft,
   onAddCalendarItem, onEditCalendarItem, onDeleteCalendarItem,
   onEdit, onDelete, onBack, askConfirm, currentUserId,
 }) {
+  const [aiCallsUsed, setAiCallsUsed] = useState(0);
   const info = lastContactInfo(client);
   const statusMeta = CLIENT_STATUSES.find((s) => s.id === client.status);
   const contactsLabel = (client.contacts || [])
@@ -1737,12 +1747,16 @@ function ClientPanel({
           <EmailTab
             client={client} onDraftSaved={onDraftSaved} onDeleteDraft={onDeleteDraft}
             askConfirm={askConfirm} currentUserId={currentUserId}
+            aiCallsUsed={aiCallsUsed} maxAiCalls={MAX_AI_CALLS_PER_CLIENT_SESSION}
+            onAiCall={() => setAiCallsUsed((n) => n + 1)}
           />
         )}
         {tab === "report" && (
           <ReportTab
             client={client} onDraftSaved={onDraftSaved} onDeleteDraft={onDeleteDraft}
             askConfirm={askConfirm} currentUserId={currentUserId}
+            aiCallsUsed={aiCallsUsed} maxAiCalls={MAX_AI_CALLS_PER_CLIENT_SESSION}
+            onAiCall={() => setAiCallsUsed((n) => n + 1)}
           />
         )}
       </div>
@@ -2167,18 +2181,21 @@ function DraftHistory({ title, drafts, onLoad, onDelete, askConfirm, currentUser
 }
 
 // ---------- email tab ----------
-function EmailTab({ client, onDraftSaved, onDeleteDraft, askConfirm, currentUserId }) {
+function EmailTab({ client, onDraftSaved, onDeleteDraft, askConfirm, currentUserId, aiCallsUsed, maxAiCalls, onAiCall }) {
   const [purpose, setPurpose] = useState(EMAIL_PURPOSES[0].id);
   const [customNote, setCustomNote] = useState("");
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const limitReached = aiCallsUsed >= maxAiCalls;
+
   const history = [...(client.drafts || [])]
     .filter((d) => d.kind === "email")
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   async function generate() {
+    if (limitReached) return;
     setLoading(true);
     setError("");
     try {
@@ -2200,6 +2217,7 @@ function EmailTab({ client, onDraftSaved, onDeleteDraft, askConfirm, currentUser
         recentNotes,
       });
       setDraft(text);
+      onAiCall();
       if (saved) onDraftSaved(saved);
     } catch (e) {
       setError(e.message || "Couldn't generate a draft — check connection and try again.");
@@ -2226,13 +2244,18 @@ function EmailTab({ client, onDraftSaved, onDeleteDraft, askConfirm, currentUser
 
       <button
         onClick={generate}
-        disabled={loading}
-        className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white mb-4 disabled:opacity-60"
+        disabled={loading || limitReached}
+        className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white mb-1.5 disabled:opacity-60"
         style={{ background: INK }}
       >
         {loading ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
         {loading ? "Drafting…" : draft ? "Regenerate" : "Draft email"}
       </button>
+      <p className="text-xs mb-3" style={{ color: MUTED }}>
+        {limitReached
+          ? "AI limit reached for this client for now — reopen this client to get more, or edit the draft below directly."
+          : `${maxAiCalls - aiCallsUsed} AI generation${maxAiCalls - aiCallsUsed === 1 ? "" : "s"} left for this client right now.`}
+      </p>
 
       {error && <p className="text-sm mb-3" style={{ color: RED }}>{error}</p>}
 
@@ -2260,7 +2283,7 @@ function EmailTab({ client, onDraftSaved, onDeleteDraft, askConfirm, currentUser
 }
 
 // ---------- report tab ----------
-function ReportTab({ client, onDraftSaved, onDeleteDraft, askConfirm, currentUserId }) {
+function ReportTab({ client, onDraftSaved, onDeleteDraft, askConfirm, currentUserId, aiCallsUsed, maxAiCalls, onAiCall }) {
   const [postsPublished, setPostsPublished] = useState("");
   const [followerGrowth, setFollowerGrowth] = useState("");
   const [engagement, setEngagement] = useState("");
@@ -2271,11 +2294,14 @@ function ReportTab({ client, onDraftSaved, onDeleteDraft, askConfirm, currentUse
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const limitReached = aiCallsUsed >= maxAiCalls;
+
   const history = [...(client.drafts || [])]
     .filter((d) => d.kind === "report")
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   async function generate() {
+    if (limitReached) return;
     setLoading(true);
     setError("");
     try {
@@ -2287,6 +2313,7 @@ function ReportTab({ client, onDraftSaved, onDeleteDraft, askConfirm, currentUse
       });
       setReport(text);
       setCurrentMeta({ stats, generatedAt: saved?.createdAt || new Date().toISOString() });
+      onAiCall();
       if (saved) onDraftSaved(saved);
     } catch (e) {
       setError(e.message || "Couldn't generate a report — check connection and try again.");
@@ -2335,13 +2362,18 @@ function ReportTab({ client, onDraftSaved, onDeleteDraft, askConfirm, currentUse
 
       <button
         onClick={generate}
-        disabled={loading}
-        className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white mb-4 disabled:opacity-60"
+        disabled={loading || limitReached}
+        className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white mb-1.5 disabled:opacity-60"
         style={{ background: INK }}
       >
         {loading ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
         {loading ? "Writing…" : report ? "Regenerate" : "Generate report"}
       </button>
+      <p className="text-xs mb-3" style={{ color: MUTED }}>
+        {limitReached
+          ? "AI limit reached for this client for now — reopen this client to get more, or edit the report below directly."
+          : `${maxAiCalls - aiCallsUsed} AI generation${maxAiCalls - aiCallsUsed === 1 ? "" : "s"} left for this client right now.`}
+      </p>
 
       {error && <p className="text-sm mb-3" style={{ color: RED }}>{error}</p>}
 
