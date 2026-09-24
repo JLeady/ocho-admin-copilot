@@ -1,10 +1,13 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 // Model + effort live here in one place so they're easy to tune later.
-// claude-opus-5 is Anthropic's current flagship model; "medium" effort keeps
-// these short drafting tasks (an email, a report paragraph) fast and cheap
-// without needing the deeper reasoning "high"/"xhigh" are meant for.
-const MODEL = "claude-opus-5";
+// claude-sonnet-5 (Anthropic's current mid-tier model, ~60% cheaper than
+// Opus 5) is plenty for grounded, short-form writing like this — drafting
+// from notes/stats already handed to it, not open-ended reasoning. "medium"
+// effort keeps these short drafting tasks (an email, a report paragraph)
+// fast and cheap without needing the deeper reasoning "high"/"xhigh" are
+// meant for.
+const MODEL = "claude-sonnet-5";
 const EFFORT = "medium";
 const MAX_TOKENS = 2000;
 
