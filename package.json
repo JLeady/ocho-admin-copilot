@@ -1,7 +1,7 @@
 {
   "name": "ocho-admin-copilot",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Ocho AI — internal admin copilot for Ocho The Agency",
   "author": "Ocho The Agency",
   "main": "electron/main.js",
