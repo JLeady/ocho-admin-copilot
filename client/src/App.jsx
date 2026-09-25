@@ -144,6 +144,25 @@ function buildAgencyResultsSummary(clients) {
   };
 }
 
+// Planned (not yet posted) content across every active client, due within
+// `withinDays` — includes anything already overdue too, same convention as
+// renewalDueSoon. Each client logs their own calendar; this is the only
+// place they're rolled up together.
+function upcomingCalendarItems(clients, withinDays = 7) {
+  const cutoff = Date.now() + withinDays * 24 * 60 * 60 * 1000;
+  const items = [];
+  for (const client of clients) {
+    if (client.status && client.status !== "active") continue;
+    for (const item of client.calendar || []) {
+      if (item.status !== "planned" || !item.date) continue;
+      if (new Date(item.date).getTime() <= cutoff) {
+        items.push({ ...item, clientId: client.id, clientName: client.name });
+      }
+    }
+  }
+  return items.sort((a, b) => new Date(a.date) - new Date(b.date));
+}
+
 function initials(name) {
   if (!name) return "?";
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -881,9 +900,9 @@ function OchoAdminCopilot({ currentUser, onLogout, onUserUpdate }) {
           <HomeDashboard
             clients={clients}
             currentUser={currentUser}
-            onSelectClient={(id) => {
+            onSelectClient={(id, tab = "notes") => {
               setSelectedId(id);
-              setTab("notes");
+              setTab(tab);
               setMobileShowDetail(true);
             }}
             onAddClient={() => setClientModal({ mode: "add" })}
@@ -948,9 +967,15 @@ function OchoAdminCopilot({ currentUser, onLogout, onUserUpdate }) {
 }
 
 // ---------- home dashboard (shown when no client is selected) ----------
+// A restrained color pass: tiles get a faint tint of their own accent color
+// instead of staying flat white — "14" appended to a hex color is an 8%
+// alpha suffix, so it reads as a wash, not a solid block.
 function StatTile({ label, value, accent }) {
   return (
-    <div className="rounded-xl p-4" style={{ background: CARD, border: `1px solid ${BORDER}` }}>
+    <div
+      className="rounded-xl p-4"
+      style={{ background: accent ? `${accent}14` : CARD, border: `1px solid ${accent ? `${accent}33` : BORDER}` }}
+    >
       <div className="text-2xl font-extrabold tracking-tight" style={{ color: accent || INK }}>{value}</div>
       <div className="text-xs mt-0.5" style={{ color: MUTED }}>{label}</div>
     </div>
@@ -998,6 +1023,7 @@ function HomeDashboard({ clients, currentUser, onSelectClient, onAddClient }) {
     .slice(0, 5);
 
   const agencyResults = buildAgencyResultsSummary(clients);
+  const upcomingContent = upcomingCalendarItems(clients).slice(0, 5);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
@@ -1033,7 +1059,7 @@ function HomeDashboard({ clients, currentUser, onSelectClient, onAddClient }) {
                   key={c.id}
                   onClick={() => onSelectClient(c.id)}
                   className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-colors hover:bg-black/[0.02]"
-                  style={{ background: CARD, border: `1px solid ${BORDER}` }}
+                  style={{ background: CARD, border: `1px solid ${BORDER}`, borderLeft: `3px solid ${info.color}` }}
                 >
                   <Avatar name={c.name} healthColor={info.color} />
                   <div className="min-w-0 flex-1">
@@ -1058,7 +1084,10 @@ function HomeDashboard({ clients, currentUser, onSelectClient, onAddClient }) {
                     key={c.id}
                     onClick={() => onSelectClient(c.id)}
                     className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-colors hover:bg-black/[0.02]"
-                    style={{ background: CARD, border: `1px solid ${BORDER}` }}
+                    style={{
+                      background: CARD, border: `1px solid ${BORDER}`,
+                      borderLeft: `3px solid ${days < 0 ? RED : AMBER}`,
+                    }}
                   >
                     <Avatar name={c.name} healthColor={lastContactInfo(c).color} />
                     <div className="min-w-0 flex-1">
@@ -1069,6 +1098,36 @@ function HomeDashboard({ clients, currentUser, onSelectClient, onAddClient }) {
                     </div>
                     <div className="text-xs font-mono flex-shrink-0" style={{ color: days < 0 ? RED : AMBER }}>
                       {days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? "Today" : `${days}d`}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {upcomingContent.length > 0 && (
+          <>
+            <Label>This week's content</Label>
+            <div className="mt-2 mb-7 space-y-2">
+              {upcomingContent.map((item) => {
+                const days = daysUntil(item.date);
+                const urgentColor = days < 0 ? RED : days <= 1 ? AMBER : ACCENT;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => onSelectClient(item.clientId, "calendar")}
+                    className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-colors hover:bg-black/[0.02]"
+                    style={{ background: CARD, border: `1px solid ${BORDER}`, borderLeft: `3px solid ${urgentColor}` }}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold text-sm truncate">{item.title || "Untitled"}</div>
+                      <div className="text-xs truncate" style={{ color: MUTED }}>
+                        {item.clientName} · {item.platform}
+                      </div>
+                    </div>
+                    <div className="text-xs font-mono flex-shrink-0" style={{ color: urgentColor }}>
+                      {days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? "Today" : days === 1 ? "Tomorrow" : `${days}d`}
                     </div>
                   </button>
                 );
