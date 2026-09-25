@@ -7,6 +7,7 @@ import {
 import { api } from "./api";
 import Login, { Setup, ForcePasswordChange, ResetPassword } from "./Login.jsx";
 import { downloadReportPdf } from "./ReportPdf.jsx";
+import { downloadAgencyResultsPdf } from "./AgencyResultsPdf.jsx";
 import { ErrorBoundary } from "./ErrorBoundary.jsx";
 
 // ---------- design tokens ----------
@@ -104,6 +105,43 @@ function lastContactInfo(client) {
 function needsAttention(client) {
   if (client.status && client.status !== "active") return false;
   return lastContactInfo(client).color !== GREEN;
+}
+
+// Rolls up report history across active clients for the dashboard's "Agency
+// Results" section and its PDF export. Deliberately doesn't try to sum or
+// average the stats fields (follower growth, engagement, etc.) — those are
+// free text Christie types per report ("+340 (6%)", "avg 4.2%, up from
+// 3.1%"), not numbers, so there's no honest way to add them together. What
+// CAN be computed honestly are counts: how many clients have a report on
+// file, and how many reports were generated recently. The per-client detail
+// stays qualitative — each client's own most recent report, verbatim.
+function buildAgencyResultsSummary(clients) {
+  const activeClients = clients.filter((c) => !c.status || c.status === "active");
+  const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+
+  const clientSummaries = activeClients
+    .map((client) => {
+      const reports = (client.drafts || [])
+        .filter((d) => d.kind === "report")
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      return { client, latestReport: reports[0] || null, reportCount: reports.length };
+    })
+    .filter((s) => s.latestReport)
+    .sort((a, b) => new Date(b.latestReport.createdAt) - new Date(a.latestReport.createdAt));
+
+  const reportsLast30Days = activeClients.reduce((sum, client) => {
+    const recent = (client.drafts || []).filter(
+      (d) => d.kind === "report" && new Date(d.createdAt).getTime() >= thirtyDaysAgo
+    );
+    return sum + recent.length;
+  }, 0);
+
+  return {
+    totalActiveClients: activeClients.length,
+    clientsWithReports: clientSummaries.length,
+    reportsLast30Days,
+    clientSummaries,
+  };
 }
 
 function initials(name) {
@@ -959,6 +997,8 @@ function HomeDashboard({ clients, currentUser, onSelectClient, onAddClient }) {
     .sort((a, b) => daysUntil(a.billing.renewalDate) - daysUntil(b.billing.renewalDate))
     .slice(0, 5);
 
+  const agencyResults = buildAgencyResultsSummary(clients);
+
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const firstName = currentUser.name?.split(" ")[0] || currentUser.name;
@@ -1034,6 +1074,39 @@ function HomeDashboard({ clients, currentUser, onSelectClient, onAddClient }) {
                 );
               })}
             </div>
+          </>
+        )}
+
+        <div className="flex items-center justify-between mt-8 mb-2">
+          <Label>Agency results</Label>
+          {agencyResults.clientsWithReports > 0 && (
+            <button
+              onClick={() => downloadAgencyResultsPdf({ summary: agencyResults, generatedAt: new Date().toISOString() })}
+              className="flex items-center gap-1.5 text-xs font-semibold rounded-md px-2.5 py-1.5 transition-colors"
+              style={{ background: "#EEF2FF", color: ACCENT }}
+            >
+              <Download size={13} /> PDF
+            </button>
+          )}
+        </div>
+        {agencyResults.clientsWithReports === 0 ? (
+          <div className="p-4 rounded-xl" style={{ background: CARD, border: `1px solid ${BORDER}` }}>
+            <p className="text-sm" style={{ color: MUTED }}>
+              Once a client has at least one report on file, a rolled-up summary — good for showing
+              off what the agency's actually delivering — shows up here.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              <StatTile label="Active clients" value={agencyResults.totalActiveClients} />
+              <StatTile label="With a report on file" value={agencyResults.clientsWithReports} />
+              <StatTile label="Reports (last 30 days)" value={agencyResults.reportsLast30Days} />
+            </div>
+            <p className="text-xs" style={{ color: MUTED }}>
+              The PDF export includes each client's latest reported growth and engagement — a
+              ready-to-share snapshot of results across the whole agency.
+            </p>
           </>
         )}
       </div>
