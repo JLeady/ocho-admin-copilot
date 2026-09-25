@@ -2152,9 +2152,9 @@ function DraftHistory({ title, drafts, onLoad, onDelete, askConfirm, currentUser
                   onClick={() => onLoad(d)}
                   className="p-1.5 rounded-md"
                   style={{ color: ACCENT }}
-                  title="Load into editor"
+                  title="Edit this version"
                 >
-                  <RotateCcw size={13} />
+                  <Pencil size={13} />
                 </button>
                 <button
                   onClick={() =>
