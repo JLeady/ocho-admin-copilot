@@ -41,6 +41,12 @@ function emailPurposeLabel(id) {
   return EMAIL_PURPOSES.find((p) => p.id === id)?.label || null;
 }
 
+const EMAIL_TONES = [
+  { id: "warm", label: "Warm" },
+  { id: "direct", label: "Direct" },
+  { id: "formal", label: "Formal" },
+];
+
 const CLIENT_STATUSES = [
   { id: "active", label: "Active" },
   { id: "paused", label: "Paused" },
@@ -217,7 +223,7 @@ function Avatar({ name, healthColor, size = 34 }) {
 
 function Label({ children }) {
   return (
-    <div className="font-mono uppercase text-[10px] tracking-widest mb-1" style={{ color: MUTED }}>
+    <div className="font-semibold uppercase text-[11px] tracking-wide mb-1" style={{ color: MUTED }}>
       {children}
     </div>
   );
@@ -1156,17 +1162,11 @@ function HomeDashboard({ clients, currentUser, onSelectClient, onAddClient }) {
             </p>
           </div>
         ) : (
-          <>
-            <div className="grid grid-cols-3 gap-3 mb-3">
-              <StatTile label="Active clients" value={agencyResults.totalActiveClients} />
-              <StatTile label="With a report on file" value={agencyResults.clientsWithReports} />
-              <StatTile label="Reports (last 30 days)" value={agencyResults.reportsLast30Days} />
-            </div>
-            <p className="text-xs" style={{ color: MUTED }}>
-              The PDF export includes each client's latest reported growth and engagement — a
-              ready-to-share snapshot of results across the whole agency.
-            </p>
-          </>
+          <div className="grid grid-cols-3 gap-3">
+            <StatTile label="Active clients" value={agencyResults.totalActiveClients} />
+            <StatTile label="With a report on file" value={agencyResults.clientsWithReports} />
+            <StatTile label="Reports (last 30 days)" value={agencyResults.reportsLast30Days} />
+          </div>
         )}
       </div>
     </div>
@@ -2315,6 +2315,7 @@ function DraftHistory({ title, drafts, onLoad, onDelete, askConfirm, currentUser
 // ---------- email tab ----------
 function EmailTab({ client, onDraftSaved, onDeleteDraft, askConfirm, currentUserId, aiCallsUsed, maxAiCalls, onAiCall }) {
   const [purpose, setPurpose] = useState(EMAIL_PURPOSES[0].id);
+  const [tone, setTone] = useState(EMAIL_TONES[0].id);
   const [customNote, setCustomNote] = useState("");
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(false);
@@ -2326,16 +2327,19 @@ function EmailTab({ client, onDraftSaved, onDeleteDraft, askConfirm, currentUser
     .filter((d) => d.kind === "email")
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
+  // Computed once here rather than only inside generate() — the same list
+  // is now shown on screen ("what this draft will use") as well as sent to
+  // the AI, so the two can't drift apart.
+  const recentNotes = [...client.notes]
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .slice(0, 5)
+    .map((n) => ({ date: n.date, text: n.text }));
+
   async function generate() {
     if (limitReached) return;
     setLoading(true);
     setError("");
     try {
-      const recentNotes = [...client.notes]
-        .sort((a, b) => new Date(b.date) - new Date(a.date))
-        .slice(0, 5)
-        .map((n) => ({ date: n.date, text: n.text }));
-
       const { text, draft: saved } = await api.draftEmail({
         clientId: client.id,
         client: {
@@ -2345,6 +2349,7 @@ function EmailTab({ client, onDraftSaved, onDeleteDraft, askConfirm, currentUser
           goals: client.goals,
         },
         purpose,
+        tone,
         customNote: purpose === "custom" ? customNote : undefined,
         recentNotes,
       });
@@ -2360,12 +2365,28 @@ function EmailTab({ client, onDraftSaved, onDeleteDraft, askConfirm, currentUser
 
   return (
     <div className="max-w-2xl">
-      <Field label="Purpose">
-        <select className={inputClass} style={{ borderColor: BORDER }} value={purpose}
-          onChange={(e) => setPurpose(e.target.value)}>
-          {EMAIL_PURPOSES.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-        </select>
-      </Field>
+      {client.contacts?.length > 0 && (
+        <Field label="Sending to">
+          <p className="text-sm">
+            {client.contacts.map((c) => (c.role ? `${c.name} (${c.role})` : c.name)).join(", ")}
+          </p>
+        </Field>
+      )}
+
+      <div className="grid grid-cols-2 gap-x-4">
+        <Field label="Purpose">
+          <select className={inputClass} style={{ borderColor: BORDER }} value={purpose}
+            onChange={(e) => setPurpose(e.target.value)}>
+            {EMAIL_PURPOSES.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+          </select>
+        </Field>
+        <Field label="Tone">
+          <select className={inputClass} style={{ borderColor: BORDER }} value={tone}
+            onChange={(e) => setTone(e.target.value)}>
+            {EMAIL_TONES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+          </select>
+        </Field>
+      </div>
 
       {purpose === "custom" && (
         <Field label="What should this email cover?">
@@ -2373,6 +2394,26 @@ function EmailTab({ client, onDraftSaved, onDeleteDraft, askConfirm, currentUser
             onChange={(e) => setCustomNote(e.target.value)} placeholder="e.g. Let them know we're proposing a new content format next month" />
         </Field>
       )}
+
+      <div className="mb-4">
+        <Label>This draft will use</Label>
+        {recentNotes.length === 0 ? (
+          <p className="text-xs" style={{ color: MUTED }}>
+            No touchpoints logged yet — the draft will lean on their goals and business type only.
+          </p>
+        ) : (
+          <div className="rounded-lg p-3 space-y-1.5" style={{ background: BG, border: `1px solid ${BORDER}` }}>
+            {recentNotes.map((n, i) => (
+              <div key={i} className="text-xs flex gap-2" style={{ color: MUTED }}>
+                <span className="flex-shrink-0 font-semibold" style={{ color: INK }}>
+                  {new Date(n.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                </span>
+                <span className="truncate">{n.text}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <button
         onClick={generate}

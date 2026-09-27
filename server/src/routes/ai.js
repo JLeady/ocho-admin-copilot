@@ -12,6 +12,12 @@ const EMAIL_PURPOSE_LABELS = {
   custom: "Custom (described below)",
 };
 
+const EMAIL_TONE_DESCRIPTIONS = {
+  warm: "warm and friendly, like writing to someone you have a good relationship with",
+  direct: "direct and efficient — get straight to the point, minimal small talk",
+  formal: "formal and polished, professional business correspondence",
+};
+
 function contactsLine(contacts) {
   if (!Array.isArray(contacts) || contacts.length === 0) return "not specified";
   return contacts.map((c) => (c.role ? `${c.name} (${c.role})` : c.name)).join(", ");
@@ -35,17 +41,18 @@ function handleAnthropicError(err, res) {
 }
 
 router.post("/email", async (req, res) => {
-  const { clientId, client, purpose, customNote, recentNotes } = req.body || {};
+  const { clientId, client, purpose, tone, customNote, recentNotes } = req.body || {};
   if (!clientId) return res.status(400).json({ error: "Missing clientId" });
   if (!client?.name) return res.status(400).json({ error: "Missing client details" });
 
   const purposeLabel = EMAIL_PURPOSE_LABELS[purpose] || EMAIL_PURPOSE_LABELS.checkin;
+  const toneDescription = EMAIL_TONE_DESCRIPTIONS[tone] || EMAIL_TONE_DESCRIPTIONS.warm;
   const notesBlock =
     Array.isArray(recentNotes) && recentNotes.length
       ? recentNotes.map((n) => `- ${new Date(n.date).toLocaleDateString()}: ${n.text}`).join("\n")
       : "No notes logged yet.";
 
-  const prompt = `You are helping a social media agency owner named Christie draft a short, warm, professional email to her client.
+  const prompt = `You are helping a social media agency owner named Christie draft a short, professional email to her client.
 
 Client: ${client.name} (${client.businessType || "not specified"})
 Main contact(s): ${contactsLine(client.contacts)}
@@ -56,7 +63,7 @@ ${notesBlock}
 
 Email purpose: ${purposeLabel}${purpose === "custom" ? `\nSpecific instructions: ${customNote || "none given"}` : ""}
 
-Write only the email itself (including a short subject line on the first line as "Subject: ..."), no preamble or explanation. Keep it warm, concise, and specific to this client's context — avoid generic filler. Sign off as Christie.`;
+Write only the email itself (including a short subject line on the first line as "Subject: ..."), no preamble or explanation. Keep the tone ${toneDescription}. Keep it concise and specific to this client's context — avoid generic filler. Sign off as Christie.`;
 
   try {
     const text = await generateText(prompt);
