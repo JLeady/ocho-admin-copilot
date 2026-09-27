@@ -86,12 +86,22 @@ function createWindow() {
     title: "Ocho AI",
     icon: path.join(__dirname, "icon.ico"),
     backgroundColor: "#F5F6FA",
+    show: false, // shown (maximized) once ready, so it doesn't flash small first
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
       preload: path.join(__dirname, "preload.js"),
     },
+  });
+
+  // Opens filling the screen by default — the layout is designed to make
+  // good use of the extra width (see the max-w-3xl content columns in
+  // App.jsx), not just tolerate it. Someone can still un-maximize/resize
+  // freely afterward; this only sets the starting state.
+  mainWindow.once("ready-to-show", () => {
+    mainWindow.maximize();
+    mainWindow.show();
   });
 
   // This app never needs to navigate anywhere but its own local server —

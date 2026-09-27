@@ -1037,7 +1037,7 @@ function HomeDashboard({ clients, currentUser, onSelectClient, onAddClient }) {
 
   return (
     <div className="flex-1 overflow-y-auto px-6 md:px-10 py-8 md:py-10">
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-3xl mx-auto">
         <h1 className="font-extrabold text-2xl tracking-tight mb-1" style={{ color: INK }}>
           {greeting}, {firstName}
         </h1>
@@ -1924,7 +1924,7 @@ function NotesTab({ client, onAddNote, onEditNote, onDeleteNote, askConfirm, cur
   const hasBillingInfo = billing && (billing.monthlyRetainer != null || billing.renewalDate);
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-3xl">
       {hasBillingInfo && (
         <div className="mb-5 p-4 rounded-xl" style={{ background: CARD, border: `1px solid ${BORDER}` }}>
           <Label>Billing</Label>
@@ -2097,7 +2097,7 @@ function CalendarTab({ client, onAddItem, onEditItem, onDeleteItem, askConfirm }
   }
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-3xl">
       <div className="mb-5">
         <Label>Plan content</Label>
         <input
@@ -2364,7 +2364,7 @@ function EmailTab({ client, onDraftSaved, onDeleteDraft, askConfirm, currentUser
   }
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-3xl">
       {client.contacts?.length > 0 && (
         <Field label="Sending to">
           <p className="text-sm">
@@ -2509,7 +2509,7 @@ function ReportTab({ client, onDraftSaved, onDeleteDraft, askConfirm, currentUse
   }
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-3xl">
       <div className="grid grid-cols-2 gap-x-4">
         <Field label="Posts published">
           <input className={inputClass} style={{ borderColor: BORDER }} value={postsPublished}
