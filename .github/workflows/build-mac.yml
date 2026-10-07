@@ -1,0 +1,38 @@
+name: Build macOS release
+
+# A real macOS build has to happen on a Mac — nobody working on this project
+# has one, so this runs on GitHub's hosted macOS runners instead. Triggers
+# on every version tag (the same tags the Windows build is published
+# against locally), builds the mac installer, and uploads it to that same
+# GitHub release — see electron/publish-mac-release.js for why it only ever
+# adds its own files rather than touching the whole release.
+#
+# This produces an UNSIGNED build (no Apple Developer account configured) —
+# first launch on a Mac will need a one-time Gatekeeper bypass (right-click
+# → Open, or allow it in System Settings → Privacy & Security).
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build and publish macOS release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run electron:publish:mac

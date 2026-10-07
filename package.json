@@ -16,7 +16,9 @@
     "start:server-only": "npm run start -w server",
     "electron:dev": "npm run build && electron .",
     "electron:build": "npm run build && electron-builder",
-    "electron:publish": "npm run build && electron-builder && node electron/publish-release.js"
+    "electron:build:mac": "npm run build && electron-builder --mac",
+    "electron:publish": "npm run build && electron-builder && node electron/publish-release.js",
+    "electron:publish:mac": "npm run build && electron-builder --mac && node electron/publish-mac-release.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
@@ -53,6 +55,14 @@
     "nsis": {
       "oneClick": true,
       "perMachine": false
+    },
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["x64", "arm64"] },
+        { "target": "zip", "arch": ["x64", "arm64"] }
+      ],
+      "icon": "electron/icon-1024.png",
+      "category": "public.app-category.business"
     },
     "publish": {
       "provider": "github",
