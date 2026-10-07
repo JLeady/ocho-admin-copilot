@@ -15,10 +15,10 @@
     "start": "npm run build && npm run start -w server",
     "start:server-only": "npm run start -w server",
     "electron:dev": "npm run build && electron .",
-    "electron:build": "npm run build && electron-builder",
-    "electron:build:mac": "npm run build && electron-builder --mac",
-    "electron:publish": "npm run build && electron-builder && node electron/publish-release.js",
-    "electron:publish:mac": "npm run build && electron-builder --mac && node electron/publish-mac-release.js"
+    "electron:build": "npm run build && electron-builder --publish never",
+    "electron:build:mac": "npm run build && electron-builder --mac --publish never",
+    "electron:publish": "npm run build && electron-builder --publish never && node electron/publish-release.js",
+    "electron:publish:mac": "npm run build && electron-builder --mac --publish never && node electron/publish-mac-release.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
