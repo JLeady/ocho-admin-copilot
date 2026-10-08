@@ -1,7 +1,7 @@
 {
   "name": "ocho-admin-copilot",
   "private": true,
-  "version": "0.3.5",
+  "version": "0.3.6",
   "description": "Ocho AI — internal admin copilot for Ocho The Agency",
   "author": "Jack Leadbetter",
   "main": "electron/main.js",
